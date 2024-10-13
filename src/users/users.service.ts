@@ -1,72 +1,56 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common"
 import { CreateUserInputDTO } from "./dtos/createUserInput.dto"
 import { UptadeUserDTO } from "./dtos/uptadeUserInput.dto"
+import { PrismaService } from "src/prisma.service"
 
 @Injectable()
-export class UserService{
-    private users = [{
-        id:1,
-        name: 'joao',
-        email: 'joao@email.com',
-        password: '123'
-    },
-    {
-        id:2,
-        name: 'Maria',
-        email: 'Maria@email.com',
-        password: '123'
-    },
-    {
-        id:3,
-        name: 'mateus',
-        email: 'mateus@email.com',
-        password: '123'
-    }
-    ]
+export class UserService {
 
-    findAll(id:number) { //parametro ( o new é pra precisar pssar parametro)
+    constructor(private prisma: PrismaService) { }
+
+    async findAll(id: number) { //parametro ( o new é pra precisar pssar parametro)
         console.log(id)
         if (id) {
-            const user = this.users.find((users) => users.id === id)
-            return [user].filter((user) => user)
+            const user = await this.prisma.user.findUnique({ where: { id } })
+            return user;
         }
-        return this.users
-        
+        const users = await this.prisma.user.findMany()
+        return users;
+
     }
 
-    findById(id:number) {// new ParseIntPipe tranforma para o tipo number 
-        const user = this.users.find((users) => users.id === id)
-        if(user) return user
+    async findById(id: number) {// new ParseIntPipe tranforma para o tipo number 
+        const user = await this.prisma.user.findUnique({ where: {id} })
+        if (user) return user
         throw new NotFoundException() //excessão acoplada ao prot http que retorna uma msg personalizada
     }
 
-    create(body: CreateUserInputDTO) {
-        const user = this.users.find((users) => users.email ===body.email)
-        if(user) throw new BadRequestException('Email ja cadastrado')
-        const lastUser = this.users[this.users.length - 1]
-        const newUser = {
-            id: lastUser.id + 1,
-            ...body,}
-
-        this.users.push(newUser)
+    async create(body: CreateUserInputDTO) {
+        const user = await this.prisma.user.findUnique({
+            where: { email: body.email }
+        })
+        if (user) {
+            throw new BadRequestException('Email ja cadastrado')
+        }
+        const newUser = await this.prisma.user.create(
+            {
+                data: body
+            }
+        );
         return newUser;
     }
 
-    uptade(id: number, body: UptadeUserDTO) {
-        const user = this.users.find((user) => user.id === id) 
-        if(!user) throw new NotFoundException()
-        this.users.map((user) => {
-        if(user.id === id)
-            return {...user, ...body}
+    async uptade(id: number, body: UptadeUserDTO) {
+        let user = await this.findById(id)
+        if (!user) throw new NotFoundException()
+        user = await this.prisma.user.update({ where: { id }, data: body })
         return user
-        })
-        return {...user, ...body}
     }
 
-    delete(id: number) {
-        const user = this.users.find((user) => user.id === id) 
-        if(!user) throw new NotFoundException()
-        this.users = this.users.filter((user) => user.id !== id) 
-        return {message: 'User deleted'}
+    async delete(id: number) {
+        let user = await this.findById(id)
+        if (!user) throw new NotFoundException()
+        await this.prisma.user.delete({ where: { id } })
+        return { message: 'User deleted' }
     }
 }
